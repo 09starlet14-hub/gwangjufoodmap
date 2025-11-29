@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    
+    <!-- PWA / Web App Settings -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="광주 리본 맛집">
+    
+    <!-- App Icon Placeholder (실제 배포 시 경로 수정 필요) -->
+    <link rel="apple-touch-icon" href="https://placehold.co/192x192/2c3e50/ffffff?text=Ribbon">
+    <link rel="icon" type="image/png" href="https://placehold.co/192x192/2c3e50/ffffff?text=Ribbon">
+
+    <title>광주광역시 리본 맛집 지도</title>
+    <style>
+        :root {
+            --blue-ribbon: #2d9cdb;
+            --red-ribbon: #eb5757;
+            --bg-color: #f8f9fa;
+            --text-color: #333;
+            --card-bg: #ffffff;
+            --primary-color: #2c3e50;
+            --active-color: #e67e22; 
+            --youtube-red: #ff0000;
+            --safe-area-top: env(safe-area-inset-top, 20px);
+            --safe-area-bottom: env(safe-area-inset-bottom, 20px);
+        }
+
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; 
+            -webkit-tap-highlight-color: transparent; /* 모바일 터치 하이라이트 제거 */
+        }
+        
+        html, body {
+            height: 100%;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overscroll-behavior-y: none; /* 스크롤 바운스 방지 */
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            padding-bottom: var(--safe-area-bottom);
+        }
+
+        /* Header */
+        header {
+            background: var(--primary-color);
+            color: white;
+            padding: calc(var(--safe-area-top) + 15px) 20px 15px 20px; /* 노치 대응 */
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+        }
+        header h1 { font-size: 1.3rem; margin-bottom: 5px; font-weight: 700; }
+        header p { font-size: 0.85rem; opacity: 0.8; margin-bottom: 12px; }
+
+        /* Category Filter */
+        .category-filter {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .filter-btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(5px);
+        }
+
+        .filter-btn:active { transform: scale(0.95); background: rgba(255, 255, 255, 0.3); }
+        .filter-btn.active { 
+            background: white; 
+            color: var(--primary-color); 
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            border-color: white;
+        }
+
+        /* Navigation (Neighborhoods) */
+        .nav-container {
+            padding: 12px 15px;
+            overflow-x: auto;
+            white-space: nowrap;
+            background: white;
+            border-bottom: 1px solid #eee;
+            -webkit-overflow-scrolling: touch; 
+            flex-shrink: 0;
+            /* 스크롤바 숨기기 */
+            scrollbar-width: none; 
+            -ms-overflow-style: none;
+        }
+        .nav-container::-webkit-scrollbar { display: none; }
+        
+        .district-btn {
+            display: inline-block;
+            padding: 8px 14px;
+            margin-right: 6px;
+            border: 1px solid #eee;
+            border-radius: 18px;
+            background: #f8f9fa;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .district-btn:active { transform: scale(0.95); background: #eee; }
+        .district-btn.active {
+            background: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+            font-weight: 700;
+            box-shadow: 0 2px 6px rgba(44, 62, 80, 0.2);
+        }
+
+        /* Main Content */
+        .container {
+            flex: 1;
+            overflow-y: auto; /* 내부 스크롤 */
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px 15px;
+            width: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .list-header {
+            margin-bottom: 15px;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #444;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .restaurant-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); /* 모바일 1열 */
+            gap: 15px;
+            padding-bottom: 20px;
+        }
+        
+        @media (min-width: 600px) {
+            .restaurant-list {
+                grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            }
+        }
+
+        /* Restaurant Card */
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.2s;
+            border-left: 6px solid transparent;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .card:active { transform: scale(0.98); background-color: #f9f9f9; }
+
+        .card.blue { border-left-color: var(--blue-ribbon); }
+        .card.red { border-left-color: var(--red-ribbon); }
+
+        .card-info { flex: 1; }
+
+        .ribbon-tag {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 6px;
+            letter-spacing: -0.5px;
+        }
+        .ribbon-tag.blue { background-color: var(--blue-ribbon); }
+        .ribbon-tag.red { background-color: var(--red-ribbon); }
+
+        .category-icon {
+            font-size: 2rem;
+            opacity: 0.8;
+            margin-left: 10px;
+        }
+
+        .card h3 { font-size: 1.15rem; margin-bottom: 4px; color: #222; font-weight: 700; }
+        .card p { font-size: 0.85rem; color: #777; display: flex; align-items: center; }
+
+        /* Modal (Detail View) */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: flex-end; /* 모바일 시트 느낌 */
+            backdrop-filter: blur(4px);
+        }
+        
+        @media (min-width: 600px) {
+            .modal-overlay { align-items: center; }
+        }
+
+        .modal-overlay.open { display: flex; animation: fadeIn 0.2s ease-out; }
+
+        .modal-content {
+            background: white;
+            width: 100%;
+            max-width: 500px;
+            border-radius: 20px 20px 0 0; /* 상단만 둥글게 */
+            overflow: hidden;
+            box-shadow: 0 -5px 25px rgba(0,0,0,0.2);
+            animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            display: flex;
+            flex-direction: column;
+            height: 85vh; /* 화면의 85% 차지 */
+        }
+
+        @media (min-width: 600px) {
+            .modal-content {
+                border-radius: 16px;
+                height: auto;
+                max-height: 85vh;
+            }
+        }
+
+        .modal-header {
+            padding: 15px 20px;
+            background: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f0f0f0;
+            flex-shrink: 0;
+        }
+        .modal-header h2 { font-size: 1.2rem; font-weight: 700; }
+        .close-btn {
+            background: #f1f3f5; border: none; font-size: 1.5rem; cursor: pointer; color: #555;
+            width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        }
+
+        .modal-body { 
+            padding: 0; 
+            overflow-y: auto; 
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        /* Image Styling in Modal */
+        .modal-image-container {
+            width: 100%;
+            height: 220px;
+            background-color: #f0f0f0;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        
+        .modal-image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .modal-info-container {
+            padding: 20px;
+        }
+
+        .info-row { margin-bottom: 20px; }
+        .info-label {
+            font-size: 0.8rem; color: #888; margin-bottom: 6px; display: block; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .info-value { font-size: 1rem; color: #333; line-height: 1.6; white-space: pre-line; word-break: keep-all; }
+        
+        /* YouTube Button */
+        .youtube-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 14px;
+            margin-top: 10px;
+            background-color: var(--youtube-red);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s, transform 0.1s;
+            box-shadow: 0 4px 10px rgba(255, 0, 0, 0.2);
+        }
+        .youtube-btn:active { transform: scale(0.96); background-color: #cc0000; }
+        .youtube-icon { margin-right: 8px; font-size: 1.2rem; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        /* Empty State */
+        .empty-message {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+            grid-column: 1 / -1;
+            font-size: 0.95rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>광주 리본 맛집 & 카페 🎀</h1>
+        <p>엄선된 광주의 미식 지도</p>
+        
+        <!-- Category Filter -->
+        <div class="category-filter">
+            <button class="filter-btn active" onclick="setCategory('all', this)">전체</button>
+            <button class="filter-btn" onclick="setCategory('restaurant', this)">🍚 식당</button>
+            <button class="filter-btn" onclick="setCategory('cafe', this)">☕ 카페</button>
+        </div>
+    </header>
+
+    <!-- Neighborhood Navigation -->
+    <nav class="nav-container" id="nav-container">
+        <!-- Buttons will be injected here by JS -->
+    </nav>
+
+    <!-- Main List -->
+    <div class="container">
+        <div class="list-header">
+            <span id="list-title">전체 목록</span>
+            <span id="list-count" style="font-size: 0.85rem; color: #888; font-weight: normal; background: #f0f0f0; padding: 2px 8px; border-radius: 10px;"></span>
+        </div>
+        <div class="restaurant-list" id="restaurant-list">
+            <div class="empty-message">상단의 동네를 선택하거나 카테고리를 눌러보세요!</div>
+        </div>
+    </div>
+
+    <!-- Modal for Details -->
+    <div class="modal-overlay" id="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-title">가게 이름</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Image Section -->
+                <div class="modal-image-container">
+                    <img id="modal-img" src="" alt="가게 대표 이미지" referrerpolicy="no-referrer" onerror="this.src='https://placehold.co/800x600?text=No+Image'">
+                </div>
+
+                <!-- Info Section -->
+                <div class="modal-info-container">
+                    <div class="info-row">
+                        <span class="info-label">선정 내역</span>
+                        <div class="info-value"><span class="ribbon-tag" id="modal-ribbon">리본 정보</span></div>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">📍 상세 주소</span>
+                        <div class="info-value" id="modal-addr">주소 정보</div>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">🍽️ 대표 메뉴 및 가격</span>
+                        <div class="info-value" id="modal-menu">메뉴 정보</div>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">🚗 주차 정보</span>
+                        <div class="info-value" id="modal-parking">주차 정보</div>
+                    </div>
+                    
+                    <!-- YouTube Link Button -->
+                    <a href="#" id="modal-youtube-link" class="youtube-btn" target="_blank">
+                        <span class="youtube-icon">▶</span> 유튜브에서 후기 보기
+                    </a>
+                    <div style="height: 20px;"></div> <!-- Bottom spacer -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------------------------------------------------------
+        // 1. 데이터 베이스 (맛집 + 카페 통합)
+        // ---------------------------------------------------------
+        const restaurantData = [
+            // --- [카페 & 베이커리] ---
+            {
+                id: 101,
+                name: "카페304 상무본점",
+                neighborhood: "치평동 (서구)",
+                category: "cafe",
+                type: "blue",
+                address: "광주 서구 상무누리로 15",
+                menu: "아메리카노: 5,300원\n퐁크러쉬: 6,800원\n베이커리류: 변동",
+                parking: "전용 주차장 넓음 (무료)",
+                image: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 102,
+                name: "양인제과",
+                neighborhood: "양림동 (남구)",
+                category: "cafe",
+                type: "blue",
+                address: "광주 남구 제중로47번길 1",
+                menu: "초코팡: 5,000원\n앙버터: 5,500원\n오브가(건강빵): 5,000원~",
+                parking: "가게 앞 잠시 정차 가능 또는 공영주차장",
+                image: "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 103,
+                name: "궁전제과 충장점",
+                neighborhood: "충장로 (동구)",
+                category: "cafe",
+                type: "blue",
+                address: "광주 동구 충장로 93-6",
+                menu: "공룡알빵: 3,500원\n나비파이: 3,500원\n밀크쉐이크: 3,000원",
+                parking: "전용 주차장 없음 (문화전당 주차장 이용 추천)",
+                image: "https://images.unsplash.com/photo-1555507036-ab1f40388085?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 104,
+                name: "코발트 (COBALT)",
+                neighborhood: "동명동 (동구)",
+                category: "cafe",
+                type: "blue",
+                address: "광주 동구 동계천로 143",
+                menu: "콥 샐러드: 17,000원\n아보카도 커피: 7,000원\n브런치 메뉴 다수",
+                parking: "가게 앞 소규모 주차 또는 ACC 주차장 이용",
+                image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 105,
+                name: "아티장홍",
+                neighborhood: "동명동 (동구)",
+                category: "cafe",
+                type: "blue",
+                address: "광주 동구 동계천로 135",
+                menu: "사워도우: 8,000원~\n버터프레첼: 4,500원\n크로와상: 4,000원",
+                parking: "ACC 주차장 이용 권장",
+                image: "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 106,
+                name: "반가사유",
+                neighborhood: "동명동 (동구)",
+                category: "cafe",
+                type: "blue",
+                address: "광주 동구 백서로153번길 6",
+                menu: "핸드드립 커피: 6,000원~\n휘낭시에: 3,000원\n말차라떼: 6,500원",
+                parking: "ACC 주차장 1시간 지원 (주문 시 차량번호 등록)",
+                image: "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 107,
+                name: "베비에르 (문화전당점)",
+                neighborhood: "충장로 (동구)",
+                category: "cafe",
+                type: "blue",
+                address: "광주 동구 서석로 36",
+                menu: "마왕파이: 1,300원\n바게트 토스트: 1,100원\n다양한 베이커리",
+                parking: "ACC 주차장 또는 인근 유료 주차장 이용",
+                image: "https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?auto=format&fit=crop&w=800&h=600"
+            },
+
+
+            // --- [식당: 광산구 송정동] ---
+            {
+                id: 1,
+                name: "송정떡갈비 1호점",
+                neighborhood: "송정동 (광산구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 광산구 광산로29번길 1",
+                menu: "한우 떡갈비: 30,000원\n돼지 떡갈비: 15,000원\n육회 비빔밥: 10,000원",
+                parking: "전용 주차장 및 거리 공영주차장 이용 가능",
+                image: "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 2,
+                name: "화정떡갈비",
+                neighborhood: "송정동 (광산구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 광산구 광산로29번길 6",
+                menu: "한우 떡갈비: 24,000원\n떡갈비: 15,000원\n육회비빔밥: 10,000원",
+                parking: "가게 앞 및 공영주차장 1시간 지원",
+                image: "https://images.unsplash.com/photo-1594834749740-74b3f6764be4?auto=format&fit=crop&w=800&h=600"
+            },
+
+            // --- [식당: 북구] ---
+            {
+                id: 4,
+                name: "영미오리탕",
+                neighborhood: "유동 (북구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 북구 경양로 126",
+                menu: "오리탕(한마리): 60,000원\n오리탕(반마리): 35,000원\n미나리 추가: 3,000원",
+                parking: "대형 전용 주차장 보유 (무료)",
+                image: "https://images.unsplash.com/photo-1547592180-85f173990554?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 5,
+                name: "옥천면옥",
+                neighborhood: "신안동 (북구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 북구 무등로 144",
+                menu: "옥천면(물냉면): 12,000원\n비빔냉면: 12,000원\n불고기(1인): 18,000원",
+                parking: "가게 앞 전용 주차장",
+                image: "https://images.unsplash.com/photo-1569562211093-4ed0d0758f12?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 19,
+                name: "나주곰탕 하얀집 (운암점)",
+                neighborhood: "운암동 (북구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 북구 북문대로 153",
+                menu: "곰탕: 11,000원\n수육곰탕: 14,000원\n수육: 35,000원",
+                parking: "가게 뒷편 주차장 이용",
+                image: "https://images.unsplash.com/photo-1548943487-a2e4e43b485c?auto=format&fit=crop&w=800&h=600"
+            },
+
+            // --- [식당: 동구 충장로/동명동/지산동] ---
+            {
+                id: 7,
+                name: "청원모밀 (본점)",
+                neighborhood: "충장로 (동구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 동구 중앙로 174-1",
+                menu: "마른모밀(판모밀): 8,000원\n모밀국수(온): 8,000원\n유부초밥: 5,000원",
+                parking: "인근 유료 주차장 이용",
+                image: "https://images.unsplash.com/photo-1552611052-33e04de081de?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 8,
+                name: "민속촌 (본점)",
+                neighborhood: "불로동 (동구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 동구 문화전당로 37-2",
+                menu: "돼지갈비(1인): 18,000원\n불사리(냉면사리): 5,000원\n돌판비빔밥: 11,000원",
+                parking: "ACC 주차장 1시간 지원 또는 인근 주차장",
+                image: "https://images.unsplash.com/photo-1593005510509-d05b264f1c9c?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 14,
+                name: "새벽달",
+                neighborhood: "동명동 (동구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 동구 장동로 43-1",
+                menu: "꿔바로우: 19,000원\n고추잡채: 24,000원\n마라탕: 15,000원",
+                parking: "ACC 주차장 1시간 지원",
+                image: "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&h=600"
+            },
+             {
+                id: 16,
+                name: "행복한담벼락",
+                neighborhood: "동명동 (동구)",
+                category: "restaurant",
+                type: "red", 
+                address: "광주 동구 동계천로 169",
+                menu: "크림순대국밥: 11,000원\n소고기 된장비빔밥: 9,000원",
+                parking: "ACC 주차장 이용 권장",
+                image: "https://images.unsplash.com/photo-1563245372-f21724e3856d?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 21,
+                name: "지산골온천보리밥",
+                neighborhood: "지산동 (동구)",
+                category: "restaurant",
+                type: "red", 
+                address: "광주 동구 지호로127번길 29",
+                menu: "보리밥 정식: 11,000원\n도토리묵: 10,000원\n파전: 10,000원",
+                parking: "가게 앞 주차 또는 무등산 공영주차장",
+                image: "https://images.unsplash.com/photo-1628205479836-3914565780eb?auto=format&fit=crop&w=800&h=600"
+            },
+
+
+            // --- [식당: 서구 상무지구/치평동] ---
+            {
+                id: 10,
+                name: "육전명가",
+                neighborhood: "치평동 (서구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 서구 상무자유로 174",
+                menu: "한우 육전(1인): 28,000원\n키조개전: 28,000원\n보리굴비 정식: 25,000원",
+                parking: "건물 지하 및 외부 주차장 이용",
+                image: "https://images.unsplash.com/photo-1626629916609-b4f8490a2949?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 11,
+                name: "대원한정식",
+                neighborhood: "치평동 (서구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 서구 상무시민로 130",
+                menu: "한정식(4인 기준 한상): 120,000원~\n점심특선: 25,000원",
+                parking: "전용 주차장 있음",
+                image: "https://images.unsplash.com/photo-1580651315530-69c8e0026377?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 18,
+                name: "상무초밥 (본점)",
+                neighborhood: "치평동 (서구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 서구 운천로 253",
+                menu: "점심특선 A: 10,900원\n특선초밥(10p): 16,000원",
+                parking: "건물 지하 주차장",
+                image: "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 20,
+                name: "매월농원",
+                neighborhood: "매월동 (서구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 서구 전평길 66",
+                menu: "오리숯불구이(한마리): 56,000원\n오리죽: 무료 제공",
+                parking: "넓은 전용 주차장 완비",
+                image: "https://images.unsplash.com/photo-1529193591184-b1d580690dd0?auto=format&fit=crop&w=800&h=600"
+            },
+
+            // --- [식당: 남구 양림동/기타] ---
+            {
+                id: 13,
+                name: "명선헌",
+                neighborhood: "지산동 (동구)",
+                category: "restaurant",
+                type: "blue",
+                address: "광주 동구 지호로127번길 11",
+                menu: "남도 전통 한정식(점심): 35,000원\n명선헌 정식(저녁): 55,000원~",
+                parking: "가게 앞 주차 가능",
+                image: "https://images.unsplash.com/photo-1604579089921-2e8c255d8f28?auto=format&fit=crop&w=800&h=600"
+            },
+            {
+                id: 17,
+                name: "양림산도",
+                neighborhood: "양림동 (남구)",
+                category: "restaurant",
+                type: "red",
+                address: "광주 남구 백서로 76",
+                menu: "카츠산도: 9,500원\n에그산도: 7,500원\n카레: 12,000원",
+                parking: "양림동 공영주차장 (2시간 무료)",
+                image: "https://images.unsplash.com/photo-1553621042-f6e147245754?auto=format&fit=crop&w=800&h=600"
+            }
+        ];
+
+        // ---------------------------------------------------------
+        // 2. 프로그램 로직
+        // ---------------------------------------------------------
+        let currentCategory = 'all';
+        let currentNeighborhood = 'all';
+
+        // 초기화 실행
+        document.addEventListener('DOMContentLoaded', () => {
+            renderNav();
+            updateList(); // 초기 전체 목록 로드
+        });
+
+        // 카테고리 설정
+        function setCategory(cat, btn) {
+            currentCategory = cat;
+            
+            // 버튼 스타일 업데이트
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            updateList();
+        }
+
+        // 네비게이션(동네 버튼) 렌더링
+        function renderNav() {
+            const navContainer = document.getElementById('nav-container');
+            navContainer.innerHTML = ''; // 초기화
+
+            // '전체 동네' 버튼 추가
+            const allBtn = document.createElement('button');
+            allBtn.className = 'district-btn active';
+            allBtn.textContent = '전체 지역';
+            allBtn.onclick = () => selectNeighborhood('all', allBtn);
+            navContainer.appendChild(allBtn);
+            
+            // 데이터에서 중복되지 않는 동네 목록 추출
+            const neighborhoods = [...new Set(restaurantData.map(item => item.neighborhood))].sort();
+            
+            neighborhoods.forEach(dong => {
+                const btn = document.createElement('button');
+                btn.className = 'district-btn';
+                btn.textContent = dong;
+                btn.onclick = () => selectNeighborhood(dong, btn);
+                navContainer.appendChild(btn);
+            });
+        }
+
+        // 동네 선택 함수
+        function selectNeighborhood(dong, clickedBtn) {
+            currentNeighborhood = dong;
+
+            // 버튼 스타일
+            document.querySelectorAll('.district-btn').forEach(b => b.classList.remove('active'));
+            clickedBtn.classList.add('active');
+
+            updateList();
+        }
+
+        // 목록 업데이트
+        function updateList() {
+            const listContainer = document.getElementById('restaurant-list');
+            const titleEl = document.getElementById('list-title');
+            const countEl = document.getElementById('list-count');
+            
+            listContainer.innerHTML = '';
+
+            // 필터링
+            const filteredData = restaurantData.filter(item => {
+                const matchCat = currentCategory === 'all' || item.category === currentCategory;
+                const matchDong = currentNeighborhood === 'all' || item.neighborhood === currentNeighborhood;
+                return matchCat && matchDong;
+            });
+
+            // 타이틀 업데이트
+            let displayTitle = currentNeighborhood === 'all' ? '광주 전체' : currentNeighborhood;
+            let catName = currentCategory === 'all' ? '' : (currentCategory === 'restaurant' ? '(식당)' : '(카페)');
+            titleEl.textContent = `${displayTitle} ${catName}`;
+            countEl.textContent = `${filteredData.length}곳`;
+
+            if (filteredData.length === 0) {
+                listContainer.innerHTML = '<div class="empty-message">해당 조건의 가게가 없습니다.</div>';
+                return;
+            }
+
+            filteredData.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `card ${item.type}`;
+                card.onclick = () => openModal(item);
+
+                let ribbonText = item.type === 'blue' ? '🎀 블루리본' : '🥤 레드리본';
+                let icon = item.category === 'cafe' ? '☕' : '🍚';
+                
+                card.innerHTML = `
+                    <div class="card-info">
+                        <span class="ribbon-tag ${item.type}">${ribbonText}</span>
+                        <h3>${item.name}</h3>
+                        <p>📍 ${item.neighborhood}</p>
+                    </div>
+                    <div class="category-icon">${icon}</div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        // 모달 열기
+        function openModal(item) {
+            const modal = document.getElementById('modal');
+            const youtubeLink = document.getElementById('modal-youtube-link');
+            const modalImg = document.getElementById('modal-img');
+            
+            document.getElementById('modal-title').textContent = item.name;
+            document.getElementById('modal-addr').textContent = item.address;
+            document.getElementById('modal-menu').textContent = item.menu;
+            document.getElementById('modal-parking').textContent = item.parking;
+            
+            // 이미지 설정
+            if (item.image) {
+                modalImg.src = item.image;
+                modalImg.alt = item.name + ' 이미지';
+            } else {
+                modalImg.src = 'https://placehold.co/800x600?text=No+Image';
+            }
+
+            // 리본 태그 설정
+            const ribbonSpan = document.getElementById('modal-ribbon');
+            if (item.type === 'blue') {
+                ribbonSpan.textContent = '블루리본 선정';
+                ribbonSpan.className = 'ribbon-tag blue';
+            } else {
+                ribbonSpan.textContent = '레드리본 (코카콜라)';
+                ribbonSpan.className = 'ribbon-tag red';
+            }
+
+            // 유튜브 검색 링크 동적 생성
+            const dongName = item.neighborhood.split(' ')[0];
+            const searchQuery = `광주 ${dongName} ${item.name} 후기`;
+            youtubeLink.href = `https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`;
+
+            modal.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('modal');
+            modal.classList.remove('open');
+            document.body.style.overflow = 'auto';
+        }
+
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('modal')) closeModal();
+        });
+
+    </script>
+</body>
+</html>
